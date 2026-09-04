@@ -27,7 +27,18 @@ if st.button("Run Analysis"):
     fig = plot_nodal(results, Pb)  # احفظ الرسم
     st.pyplot(fig)
     
-    pdf_buffer = create_report(results, fig)  # انشئ التقرير بالرسم
+    # نجمع المدخلات + النتائج عشان نرسلها للتقرير
+    report_data = {
+        'Pr': Pr,
+        'Pb': Pb,
+        'PI': PI,
+        'Depth': Depth,
+        'TubingID': Tubing_ID,  # انتبه الاسم لازم TubingID بدون _
+        'GOR': GOR,
+        **results
+    }
+    
+    pdf_buffer = create_report(report_data, fig)  # انشئ التقرير بالرسم
     
     st.download_button(
         "📄 Download PDF Report", 
