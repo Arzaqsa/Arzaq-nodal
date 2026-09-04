@@ -2,7 +2,6 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-import matplotlib.pyplot as plt
 import io
 import datetime
 
@@ -18,7 +17,7 @@ def create_report(data, fig):
     
     # التاريخ
     story.append(Paragraph(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 20))
 
     # جدول المدخلات والمخرجات
     table_data = [
@@ -29,9 +28,9 @@ def create_report(data, fig):
         ['Depth', f"{data['Depth']} ft"],
         ['Tubing ID', f"{data['TubingID']} in"],
         ['GOR', f"{data['GOR']}"],
-        ['Nodal Rate', f"{data['NodalRate']:.0f} STB/d"],
-        ['Nodal Pwf', f"{data['NodalPwf']:.0f} psi"],
-        ['AOF', f"{data['AOF']:.0f} STB/d"],
+        ['Nodal Rate', f"{data['Q_nodal']:.0f} STB/d"],
+        ['Nodal Pwf', f"{data['Pwf_nodal']:.0f} psi"],
+        ['AOF', f"{data['Qmax']:.0f} STB/d"],
     ]
     t = Table(table_data, hAlign='LEFT')
     story.append(t)
