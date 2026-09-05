@@ -12,7 +12,7 @@ def create_report(data, fig):
 
     # 1. Header
     c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, y, "Arzaq Nodal - Well Analysis Report")
+    c.drawString(50, y, "Z2 - Well Analysis Report")
     y -= 20
     c.setFont("Helvetica", 9)
     c.drawString(50, y, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
