@@ -1,64 +1,68 @@
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-import io
-import datetime
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
+from io import BytesIO
+from datetime import datetime
 
 def create_report(data, fig):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    story = []
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 50
 
-    # العنوان
-    story.append(Paragraph("Arzaq Nodal - Professional Report", styles['Title']))
-    story.append(Spacer(1, 12))
+    # 1. Header
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(50, y, "Arzaq Nodal - Well Analysis Report")
+    y -= 20
+    c.setFont("Helvetica", 9)
+    c.drawString(50, y, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    y -= 30
+
+    # 2. Input Data
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "1. Input Parameters")
+    y -= 20
+    c.setFont("Helvetica", 10)
+
+    inputs = [
+        f"Reservoir Pressure Pr: {data['Pr']:.0f} psi",
+        f"Bubble Point Pb: {data['Pb']:.0f} psi",
+        f"Productivity Index PI: {data['PI']:.2f} STB/d/psi",
+        f"Reservoir Temp: {data['T_res']:.0f} °F",
+        f"GOR: {data['GOR']:.0f} scf/STB",
+        f"Oil API: {data['API']:.1f}",
+        f"Gas Gravity: {data['Gas_Gravity']:.2f}",
+        f"Water Cut: {data['WC']:.1f} %",
+        f"Depth: {data['Depth']:.0f} ft",
+        f"Tubing ID: {data['Tubing_ID']:.2f} in",
+        f"Wellhead Pressure: {data['P_wh']:.0f} psi",
+    ]
+    for inp in inputs:
+        c.drawString(70, y, f"• {inp}"); y -= 15
+        if y < 100: # صفحة جديدة
+            c.showPage(); y = height - 50
+
+    y -= 10
+    # 3. Results
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "2. Results")
+    y -= 20
+    c.setFont("Helvetica", 10)
+    c.drawString(70, y, f"• AOF: {data['Qmax']:,.0f} STB/day"); y -= 15
+    c.drawString(70, y, f"• Nodal Flow Rate: {data['Q_nodal']:,.0f} STB/day"); y -= 15
+    c.drawString(70, y, f"• Nodal Pwf: {data['Pwf_nodal']:,.0f} psi"); y -= 15
+    c.drawString(70, y, f"• Drawdown: {data['Pr'] - data['Pwf_nodal']:,.0f} psi"); y -= 25
+
+    # 4. Plot
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "3. Nodal Analysis Plot")
+    y -= 15
     
-    # التاريخ
-    story.append(Paragraph(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
-    story.append(Spacer(1, 20))
-
-    # 1. جدول المدخلات
-    story.append(Paragraph("Well & Reservoir Inputs", styles['Heading2']))
-    input_data = [
-        ['Reservoir Pressure Pr', f"{data['Pr']} psi"],
-        ['Bubble Point Pb', f"{data['Pb']} psi"],
-        ['PI', f"{data['PI']}"],
-        ['Depth', f"{data['Depth']} ft"],
-        ['Tubing ID', f"{data['TubingID']} in"],
-        ['GOR', f"{data['GOR']}"],
-    ]
-    t1 = Table(input_data, hAlign='LEFT', colWidths=[3*inch, 2*inch])
-    t1.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black)]))
-    story.append(t1)
-    story.append(Spacer(1, 20))
-
-    # 2. جدول النتائج
-    story.append(Paragraph("Analysis Results", styles['Heading2']))
-    result_data = [
-        ['Parameter', 'Value'],
-        ['Nodal Rate', f"{data['Q_nodal']:.0f} STB/d"],
-        ['Nodal Pwf', f"{data['Pwf_nodal']:.0f} psi"],
-        ['AOF', f"{data['Qmax']:.0f} STB/d"],
-    ]
-    t2 = Table(result_data, hAlign='LEFT', colWidths=[3*inch, 2*inch])
-    t2.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('GRID', (0,0), (-1,-1), 1, colors.black)
-    ]))
-    story.append(t2)
-    story.append(Spacer(1, 20))
-
-    # 3. الرسم البياني
-    img_buffer = io.BytesIO()
-    fig.savefig(img_buffer, format='PNG', dpi=150, bbox_inches='tight')
+    img_buffer = BytesIO()
+    fig.savefig(img_buffer, format='png', dpi=200, bbox_inches='tight')
     img_buffer.seek(0)
-    story.append(Paragraph("Nodal Analysis Plot", styles['Heading2']))
-    story.append(Image(img_buffer, width=6*inch, height=4*inch))
+    c.drawImage(ImageReader(img_buffer), 50, y-300, width=500, height=300)
 
-    doc.build(story)
+    c.save()
     buffer.seek(0)
     return buffer
