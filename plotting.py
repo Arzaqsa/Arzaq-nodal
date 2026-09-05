@@ -1,29 +1,50 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from calculations import hagedorn_brown_vlp
+from calculations import vogel_ipr, hagedorn_brown_vlp_single
 
-def plot_nodal(results, Pb, P_wh):
+def plot_nodal(results, inputs):
+    """
+    يرسم IPR vs VLP ويحدد نقطة التشغيل
+    inputs: dict فيه كل المدخلات من app.py
+    """
     fig, ax = plt.subplots(figsize=(10,6))
 
-    # IPR
+    # 1. رسم IPR
     ax.plot(results['Q_ipr'], results['P_ipr'], 'b-', linewidth=2.5, label="IPR - Vogel")
-    ax.axhline(y=Pb, color='g', linestyle='--', label=f'Pb = {Pb} psi')
+    ax.axhline(y=inputs['Pb'], color='g', linestyle='--', linewidth=1.5, label=f"Pb = {inputs['Pb']:.0f} psi")
 
-    # VLP
+    # 2. رسم VLP
     Q_vlp = np.linspace(0, results['Qmax']*1.2, 100)
     P_vlp = []
     for q in Q_vlp:
-        p = hagedorn_brown_vlp(q, 8000, 2.88, P_wh, 220, 500, 0, 35, 0.7)[0] # لازم تمرر المدخلات الحقيقية
+        p = hagedorn_brown_vlp_single(
+            q, 
+            inputs['Depth'], 
+            inputs['Tubing_ID'], 
+            inputs['P_wh'], 
+            inputs['T_res'], 
+            inputs['GOR'], 
+            inputs['WC'], 
+            inputs['API'], 
+            inputs['Gas_Gravity']
+        )
         P_vlp.append(p)
-    ax.plot(Q_vlp, P_vlp, 'r-', linewidth=2.5, label="VLP")
+    
+    ax.plot(Q_vlp, P_vlp, 'r-', linewidth=2.5, label="VLP - Hagedorn-Brown")
 
-    # Operating Point
-    ax.plot(results['Q_nodal'], results['Pwf_nodal'], 'ro', markersize=12, label=f'Operating Point')
+    # 3. نقطة التشغيل
+    ax.plot(results['Q_nodal'], results['Pwf_nodal'], 'ro', markersize=12, 
+            label=f"Operating Point: {results['Q_nodal']:,.0f} STB/d @ {results['Pwf_nodal']:,.0f} psi")
+    
+    # 4. تنسيق الرسم
+    ax.set_xlabel("Flow Rate Q (STB/day)", fontsize=12, fontweight='bold')
+    ax.set_ylabel("Pressure (psi)", fontsize=12, fontweight='bold')
+    ax.set_title("Nodal Analysis - IPR vs VLP", fontsize=14, fontweight='bold')
+    ax.legend(loc="upper right", fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.invert_yaxis() # الضغط يقل لتحت
+    ax.set_xlim(left=0)
+    ax.set_ylim(top=inputs['Pr']*1.05, bottom=0)
 
-    ax.set_xlabel("Flow Rate Q (STB/day)")
-    ax.set_ylabel("Pressure (psi)")
-    ax.set_title("Nodal Analysis - IPR vs VLP")
-    ax.legend()
-    ax.grid(True)
-    ax.invert_yaxis()
+    plt.tight_layout()
     return fig
