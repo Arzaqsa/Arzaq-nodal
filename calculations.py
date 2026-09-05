@@ -1,25 +1,86 @@
 import numpy as np
+from scipy.optimize import fsolve
 
-def darcy_ipr(Pwf, Pr, PI):
-    return PI * (Pr - Pwf)
+# ثوابت
+SCF_TO_RB = 0.00504
 
-def vogel_ipr(Pwf, Pr, Qmax):
-    if Pwf >= Pr: return 0
-    return Qmax * (1 - 0.2*(Pwf/Pr) - 0.8*(Pwf/Pr)**2)
+def calculate_pvt(API, Gas_Gravity, T_res, GOR, WC):
+    """حساب PVT مبسط"""
+    # كثافة النفط
+    rho_o = 141.5 / (API + 131.5) * 62.4 # lb/ft3
+    # كثافة الغاز
+    rho_g = Gas_Gravity * 0.0764 # lb/ft3 at SC
+    # كثافة الماء
+    rho_w = 62.4 # lb/ft3
+    # كثافة المائع المختلط
+    f_o = (1 - WC/100) / (1 - WC/100 + WC/100 * 1.0) # تقريبي
+    f_w = 1 - f_o
+    rho_mix = f_o * rho_o + f_w * rho_w
 
-def simple_vlp(Pwf, Q, Depth, Tubing_ID, GOR):
-    friction = 0.00002 * Q**1.8 * Depth / (Tubing_ID**5)
-    hydrostatic = 0.433 * Depth * (1 - GOR/5000)
-    Pwh = Pwf - hydrostatic - friction
-    return max(Pwh, 50)
+    return rho_o, rho_g, rho_w, rho_mix
 
-def calculate_ipr_vlp(Pr, Pb, PI, Depth, Tubing_ID, GOR):
-    Qmax = PI * Pr
-    P_vals = np.linspace(0, Pr, 200)
-    Q_ipr = [darcy_ipr(p, Pr, PI) if p >= Pb else vogel_ipr(p, Pr, Qmax) for p in P_vals]
-    Q_test = np.linspace(100, Qmax*1.1, 200)
-    Pwf_vlp = [simple_vlp(1000, q, Depth, Tubing_ID, GOR) + 0.433*Depth + 0.00002*q**1.8*Depth/(Tubing_ID**5) for q in Q_test]
-    Q_ipr_interp = np.interp(Pwf_vlp, P_vals, Q_ipr)
-    diff = np.abs(Q_ipr_interp - Q_test)
-    nodal_idx = np.argmin(diff)
-    return {"P_vals": P_vals, "Q_ipr": np.array(Q_ipr), "Q_test": Q_test, "Pwf_vlp": np.array(Pwf_vlp), "Q_nodal": Q_test[nodal_idx], "Pwf_nodal": Pwf_vlp[nodal_idx], "Qmax": Qmax}
+def vogel_ipr(Pr, Pb, PI, Pwf_array):
+    """معادلة Vogel للـ Two Phase"""
+    Qmax = PI * Pr / 1.8
+    Q = np.zeros_like(Pwf_array)
+
+    for i, Pwf in enumerate(Pwf_array):
+        if Pwf >= Pb:
+            Q[i] = PI * (Pr - Pwf) # Darcy فوق Pb
+        else:
+            Q_above = PI * (Pr - Pb)
+            Q_below = Qmax * (1 - 0.2 * (Pwf/Pb) - 0.8 * (Pwf/Pb)**2)
+            Q[i] = Q_above + Q_below
+
+    return Q, Qmax
+
+def hagedorn_brown_vlp(Q, Depth, Tubing_ID, P_wh, T_res, GOR, WC, API, Gas_Gravity):
+    """VLP مبسط - Hagedorn-Brown"""
+    P_array = np.linspace(P_wh, 5000, 100)
+    Q_array = np.full_like(P_array, Q)
+
+    _, _, rho_mix = calculate_pvt(API, Gas_Gravity, T_res, GOR, WC)
+
+    # نحسب ضغط الاحتكاك + الهيدروستاتيك تقريبي
+    A = np.pi * (Tubing_ID/12)**2 / 4 # ft2
+    v = Q_array * 5.615 / (A * 86400) # ft/s تقريبي
+
+    P_vlp = P_wh + (rho_mix/144) * Depth + 0.001 * v**2 * Depth # معادلة مبسطة جدا
+
+    return P_vlp
+
+def calculate_ipr_vlp(inputs):
+    Pr = inputs['Pr']
+    Pb = inputs['Pb']
+    PI = inputs['PI']
+    Depth = inputs['Depth']
+    Tubing_ID = inputs['Tubing_ID']
+    P_wh = inputs['P_wh']
+    T_res = inputs['T_res']
+    GOR = inputs['GOR']
+    API = inputs['API']
+    Gas_Gravity = inputs['Gas_Gravity']
+    WC = inputs['WC']
+
+    # 1. نرسم IPR
+    P_ipr = np.linspace(0, Pr, 100)
+    Q_ipr, Qmax = vogel_ipr(Pr, Pb, PI, P_ipr)
+
+    # 2. نلاقي نقطة التقاطع Nodal Point
+    def objective(Q_guess):
+        Pwf_guess = Pr - (Q_guess/PI)*1.8 # تقريب اولي
+        P_vlp = hagedorn_brown_vlp(Q_guess, Depth, Tubing_ID, P_wh, T_res, GOR, WC, API, Gas_Gravity)[0]
+        return Pwf_guess - P_vlp
+
+    Q_nodal = fsolve(objective, Qmax/2)[0]
+    Pwf_nodal = Pr - (Q_nodal/PI)*1.8
+    Pwf_nodal = max(0, Pwf_nodal)
+
+    results = {
+        'P_ipr': P_ipr,
+        'Q_ipr': Q_ipr,
+        'Q_nodal': Q_nodal,
+        'Pwf_nodal': Pwf_nodal,
+        'Qmax': Qmax
+    }
+    return results
