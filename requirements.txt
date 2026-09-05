@@ -1,5 +1,5 @@
-streamlit
-numpy
-matplotlib
-reportlab
-pandas
+    streamlit
+    numpy
+    matplotlib
+    scipy
+    reportlab
