@@ -4,7 +4,7 @@ from plotting import plot_nodal
 from report import create_report
 
 st.set_page_config(page_title="Arzaq Nodal", layout="wide")
-st.title("🛢️ Arzaq Nodal – Professional Well Analysis")
+st.title("🛢️ Z2 – Professional Well Analysis")
 
 with st.sidebar:
     st.header("Reservoir Data")
@@ -43,6 +43,6 @@ if st.button("Run Analysis"):
     st.download_button(
         "📄 Download PDF Report", 
         pdf_buffer, 
-        "Arzaq_Report.pdf", 
+        "Z2_Report.pdf", 
         "application/pdf"
     )
